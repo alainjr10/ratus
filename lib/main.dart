@@ -4,6 +4,7 @@ import 'package:ratus/utils/constants.dart';
 import 'package:ratus/utils/foutes.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -18,6 +19,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         scaffoldBackgroundColor: kBackgroundColor,
         primaryColor: kPrimaryColor,
+        appBarTheme: AppBarTheme(backgroundColor: kBackgroundColor),
         // colorScheme: ColorScheme(
         //   brightness: Brightness.dark,
         //   background: kBackgroundColor,
