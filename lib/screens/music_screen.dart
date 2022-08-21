@@ -1,12 +1,15 @@
 import 'dart:io';
 
 import 'package:audio_session/audio_session.dart';
+import 'package:draggable_scrollbar/draggable_scrollbar.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:ratus/viewmodels/get_all_audio_files.dart';
 import 'package:rxdart/rxdart.dart';
 
+import '../models/music_model.dart';
 import '../utils/constants.dart';
 import 'just_audio_utils/common.dart';
 
@@ -20,189 +23,46 @@ class MusicScreen extends StatefulWidget {
 
 class _MusicScreenState extends State<MusicScreen>
     with AutomaticKeepAliveClientMixin<MusicScreen> {
-  // TabController tabController = TabController();
   final _player = AudioPlayer();
   String permissionStatus = "notGranted";
-  final Permission _permission = Permission.storage;
-  PermissionStatus _permissionStatus = PermissionStatus.denied;
+  ScrollController _scrollController = ScrollController();
+  final player = AudioPlayer(); // Create a player
+  var duration;
+  GetSongsVM songsVM = GetSongsVM();
+  bool musicPlaying = false;
 
-  void _listenForPermissionStatus() async {
-    final status = await _permission.status;
-    setState(() => _permissionStatus = status);
+  void setPlayUrl(String url) async {
+    duration = await player.setUrl(url);
   }
 
   @override
   void initState() {
     super.initState();
-    // requestPermission(_permission);
-    // _init();
-    // getDir();
-    // returnFilesAfterPermissionGrant();
-    // getAllAudioAndroidFiles();
-    // requestPermission(_permission);
   }
 
   @override
   // bool get wantKeepAlive => throw UnimplementedError();
   bool get wantKeepAlive => true;
 
-  Future<bool> requestPermission(Permission permission) async {
-    if (await permission.isGranted) {
-      permissionStatus = "Granted";
-      debugPrint("Permission already granted");
-      return true;
-    } else {
-      var result = await permission.request();
-      if (result == PermissionStatus.granted) {
-        debugPrint("Permission already granted");
-        permissionStatus = "Granted";
-        return true;
-      }
-    }
-    debugPrint(
-        "Permission status: $permissionStatus the permission has not been granted. why");
-    permissionStatus = "notGranted";
-    return false;
-  }
-
-  // List<FileSystemEntity> _folders = [];
-  // Future<List<FileSystemEntity>> getDir() async {
-  //   try {
-  //     if (Platform.isAndroid) {
-  //       if (await requestPermission(Permission.storage)) {
-  //         directory = await getExternalStorageDirectory();
-  //         String newPath = "";
-  //         debugPrint("directory is: ${directory!.path}");
-  //         debugPrint("And the permission status is: $permissionStatus");
-
-  //         /// Section below is to get the full path to the application folder, and split it before we have /Android
-  //         /// then create our file path with the lefter part of the splitted path, something like /storage/emulated/0/{new file path}
-  //         List<String> paths = directory!.path.split("/");
-  //         for (int x = 1; x < paths.length; x++) {
-  //           String folder = paths[x];
-  //           if (folder != "Android") {
-  //             newPath += "/" + folder;
-  //           } else {
-  //             break;
-  //           }
-  //         }
-  //         // String pathSuffix = returnAdjustedPathLevel() == "OLevel"
-  //         //     ? "Ordinary Level"
-  //         //     : "Advanced Level";
-  //         //newPath = newPath + "/Edutive/Files/$pathSuffix";
-  //         newPath = newPath + "/Edutive/Files";
-  //         directory = Directory(newPath);
-  //         debugPrint("new path is: ${directory!.path}");
-  //       }
-  //     }
-  //   } catch (e) {
-  //     debugPrint("Platform Exception thrown: $e");
-  //   }
-  //   //setState(() {
-  //   /// Here, we get all the folders and files from the given directory and add to the list _folders
-  //   // save all files in the directory to _folders variable
-  //   _folders = directory!.listSync(recursive: true, followLinks: false);
-  //   // });
-
-  //   debugPrint("Files and folders found in this directory are: $_folders");
-
-  //   /// Section to calculate the number of Files (only files, not directories) and then return only files from our whole function, no directories
-
-  //   List<FileSystemEntity> tempList = [];
-  //   // final vall = await getHiveContent();
-  //   // for (int j = 0; j < vall.length; j++) {
-  //   //   for (int i = 0; i < _folders.length; i++) {
-  //   //     if (!isDirectory(_folders[i]) && _folders[i].path.contains(vall[j])) {
-  //   //       tempList.add(_folders[i]);
-  //   //       debugPrint(
-  //   //           "From GETDIR function. File encountered: name of file: ${_folders[i].path.split('/').last}");
-  //   //       debugPrint("The length: ${vall.length}");
-  //   //       //  continue;
-  //   //     } else {
-  //   //       debugPrint(
-  //   //           "From GETDIR function. Directory encounterd: type : ${_folders[i].path.split('/').last}");
-  //   //     }
-  //   //   }
-  //   // }
-
-  //   return tempList;
-  // }
-
-  void returnFilesAfterPermissionGrant() async {
+  Future<void> _init(String filePath) async {
+    // Inform the operating system of our app's audio attributes etc.
+    // We pick a reasonable default for an app that plays speech.
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.speech());
+    // Listen to errors during playback.
+    _player.playbackEventStream.listen((event) {},
+        onError: (Object e, StackTrace stackTrace) {
+      print('A stream error occurred: $e');
+    });
+    // Try to load audio from a source and catch any errors.
     try {
-      if (Platform.isAndroid) {
-        if (await requestPermission(Permission.storage)) {
-          debugPrint("Permission granted");
-          getAllAudioFilesAndroid();
-        }
-      }
+      // AAC example: https://dl.espressif.com/dl/audio/ff-16b-2c-44100hz.aac
+      // _player.setAsset('assets/audio/ff-16b-2c-44100hz.aac');
+      await _player.setAudioSource(AudioSource.uri(Uri.parse("$filePath")));
     } catch (e) {
-      debugPrint("Caught an exveption: $e");
+      print("Error loading audio source: $e");
     }
   }
-
-  Directory? directory;
-
-  Future<List<FileSystemEntity>> getAllAudioFilesAndroid() async {
-    directory = await getExternalStorageDirectory();
-    String newPath = "";
-    debugPrint("directory is: ${directory!.path}");
-    debugPrint("And the permission status is: $permissionStatus");
-
-    /// Section below is to get the full path to the application folder, and split it before we have /Android
-    /// then create our file path with the lefter part of the splitted path, something like /storage/emulated/0/{new file path}
-    List<String> paths = directory!.path.split("/");
-    for (int x = 1; x < paths.length; x++) {
-      String folder = paths[x];
-      if (folder != "Android") {
-        newPath += "/" + folder;
-      } else {
-        break;
-      }
-    }
-    directory = Directory(newPath);
-    debugPrint("new path is: ${directory!.path}");
-
-    String mp3Path = directory!.toString();
-    print("mp3 path: $mp3Path");
-    List<FileSystemEntity> _files;
-    List<FileSystemEntity> _songs = [];
-    _files = directory!.listSync(recursive: true, followLinks: false);
-    for (FileSystemEntity entity in _files) {
-      String path = entity.path;
-      if (path.startsWith('/storage/emulated/0/Android') ||
-          path.startsWith('/storage/emulated/0/Notifications')) {
-        continue;
-      }
-      if (path.endsWith('.mp3')) _songs.add(entity);
-    }
-    print(_songs);
-    print(_songs.length);
-    debugPrint("Song in position 230 = ${_songs[230].path}");
-
-    return _songs;
-  }
-
-  // Future<void> _init() async {
-  //   // Inform the operating system of our app's audio attributes etc.
-  //   // We pick a reasonable default for an app that plays speech.
-  //   final session = await AudioSession.instance;
-  //   await session.configure(const AudioSessionConfiguration.speech());
-  //   // Listen to errors during playback.
-  //   _player.playbackEventStream.listen((event) {},
-  //       onError: (Object e, StackTrace stackTrace) {
-  //     print('A stream error occurred: $e');
-  //   });
-  //   // Try to load audio from a source and catch any errors.
-  //   try {
-  //     // AAC example: https://dl.espressif.com/dl/audio/ff-16b-2c-44100hz.aac
-  //     _player.setAsset('assets/audio/ff-16b-2c-44100hz.aac');
-  //     await _player.setAudioSource(AudioSource.uri(Uri.parse(
-  //         "https://firebasestorage.googleapis.com/v0/b/kropco-bc094.appspot.com/o/All%20Nations%20Music%20-%20Bless%20Your%20Name%20(Official%20Music%20Video)%20ft.%20Chandler%20Moore.mp3?alt=media&token=1c0a4485-d062-4d6e-a22c-b3daa31b2907")));
-  //   } catch (e) {
-  //     print("Error loading audio source: $e");
-  //   }
-  // }
 
   @override
   void dispose() {
@@ -250,7 +110,7 @@ class _MusicScreenState extends State<MusicScreen>
         ),
         body: TabBarView(
           children: [
-            Container(
+            SizedBox(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -275,36 +135,79 @@ class _MusicScreenState extends State<MusicScreen>
                 ],
               ),
             ),
-            Container(
-              child: FutureBuilder(
-                future: getAllAudioFilesAndroid(),
-                builder: (BuildContext context,
-                    AsyncSnapshot<List<FileSystemEntity>> audioSnapshot) {
-                  if (audioSnapshot.connectionState == ConnectionState.done) {
-                    List<FileSystemEntity> snapshotData =
-                        audioSnapshot.data == null ? [] : audioSnapshot.data!;
+            SizedBox(
+              child: Column(
+                children: [
+                  Expanded(
+                    child: FutureBuilder(
+                      future: songsVM.getAllAudioFilesAndroid(),
+                      builder: (BuildContext context,
+                          AsyncSnapshot<List<MusicModel>> audioSnapshot) {
+                        if (audioSnapshot.connectionState ==
+                            ConnectionState.done) {
+                          List<MusicModel> snapshotData =
+                              audioSnapshot.data == null
+                                  ? []
+                                  : audioSnapshot.data!;
+                          // List<String> songNames = [];
+                          // for(var singleSong in snapshotData){
 
-                    debugPrint(
-                        "Length of list: ${snapshotData.length}. permission status is $permissionStatus ");
-                    return ListView.builder(
-                        itemCount: snapshotData.length,
-                        itemBuilder: (context, index) {
-                          List splittedPath =
-                              snapshotData[index].path.split('/');
-                          return ListTile(
-                            title: Text(
-                              splittedPath.last.split('mp3').first,
-                              style: TextStyle(
-                                color: Colors.white,
-                              ),
-                            ),
+                          // }
+                          snapshotData
+                              .sort((a, b) => a.modified.compareTo(b.modified));
+
+                          debugPrint(
+                              "Length of list: ${snapshotData.length}. permission status is $permissionStatus ");
+                          return DraggableScrollbar.semicircle(
+                            labelTextBuilder: (offset) {
+                              final int currentItem =
+                                  _scrollController.hasClients
+                                      ? (_scrollController.offset /
+                                              _scrollController
+                                                  .position.maxScrollExtent *
+                                              snapshotData.length)
+                                          .floor()
+                                      : 0;
+
+                              return Text("$currentItem");
+                            },
+                            labelConstraints: const BoxConstraints.tightFor(
+                                width: 80.0, height: 30.0),
+                            controller: _scrollController,
+                            child: ListView.builder(
+                                controller: _scrollController,
+                                itemCount: snapshotData.length,
+                                itemBuilder: (context, index) {
+                                  return ListTile(
+                                    onTap: () {
+                                      setPlayUrl(snapshotData[index].musicPath);
+                                      player.play();
+                                    },
+                                    leading: const Icon(
+                                      Icons.music_note_outlined,
+                                      color: Colors.white,
+                                      size: 28,
+                                    ),
+                                    title: Text(
+                                      snapshotData[index].musicName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  );
+                                }),
                           );
-                        });
-                  }
-                  return CircularProgressIndicator(
-                    color: Colors.white,
-                  );
-                },
+                        }
+                        return const CircularProgressIndicator(
+                          color: Colors.white,
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(
+                    height: 55.0,
+                  ),
+                ],
               ),
             ),
             Container(
